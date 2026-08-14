@@ -461,6 +461,18 @@ piece of the deployment, so the response is planned rather than improvised:
    fallbacks above preserve it. If cross-origin cookies are the problem, the answer is to stop
    being cross-origin, not to stop protecting the token.
 
+**What CORS is actually doing here — worth being precise about.** Under the rewrite, the browser's
+request is same-origin, and the proxy's onward request to the API is server-to-server and carries
+no browser `Origin` header. So **CORS is not what makes production login work** — `SameSite=Lax`
+on a first-party cookie is. The CORS allowlist remains correct to have, and it is load-bearing in
+exactly two places: local development, where the SPA on one port genuinely does call the API on
+another, and any client hitting the API's own URL directly, bypassing the proxy.
+
+This distinction matters because "CORS lets my frontend talk to my backend" is the common and
+wrong mental model. CORS is a browser-enforced policy about which *origins* may read a response;
+it has nothing to do with authentication, and it does not apply to requests a server makes on its
+own behalf. Under this topology the browser never makes a cross-origin request at all.
+
 ### 6.3 Response status — how sections report degradation
 
 Every content endpoint returns a `status`:
@@ -758,7 +770,7 @@ be an environment variable, not a code change.
 placeholder, its articles need real titles, real sources, real dates and correct asset tags.
 This is a content requirement, not a stub.
 
-
+### 9.3 Error-handling discipline
 
 - **One `try/catch` per provider call, at the service boundary** — not scattered through
   controllers and helpers. The catch maps the failure to a typed `AppError` with a specific
@@ -830,7 +842,7 @@ and never a raw value.
   --color-border:       39 39 42;
   --color-text:        250 250 250;
   --color-text-muted:  161 161 170;
-  --color-accent:      /* set by the design pass */;
+  --color-accent:      250 250 250;    /* PROVISIONAL — monochrome. Step 15 design pass replaces this */
   --color-accent-fg:     9 9 11;
   --color-positive:     34 197 94;
   --color-negative:    239 68 68;
@@ -843,17 +855,32 @@ and never a raw value.
 theme: {
   extend: {
     colors: {
-      bg:         'rgb(var(--color-bg) / <alpha-value>)',
-      surface:    'rgb(var(--color-surface) / <alpha-value>)',
-      border:     'rgb(var(--color-border) / <alpha-value>)',
-      muted:      'rgb(var(--color-text-muted) / <alpha-value>)',
-      accent:     'rgb(var(--color-accent) / <alpha-value>)',
-      positive:   'rgb(var(--color-positive) / <alpha-value>)',
-      negative:   'rgb(var(--color-negative) / <alpha-value>)',
+      bg:                  'rgb(var(--color-bg) / <alpha-value>)',
+      surface:             'rgb(var(--color-surface) / <alpha-value>)',
+      'surface-alt':       'rgb(var(--color-surface-alt) / <alpha-value>)',
+      border:              'rgb(var(--color-border) / <alpha-value>)',
+      foreground:          'rgb(var(--color-text) / <alpha-value>)',
+      muted:               'rgb(var(--color-text-muted) / <alpha-value>)',
+      accent:              'rgb(var(--color-accent) / <alpha-value>)',
+      'accent-foreground': 'rgb(var(--color-accent-fg) / <alpha-value>)',
+      positive:            'rgb(var(--color-positive) / <alpha-value>)',
+      negative:            'rgb(var(--color-negative) / <alpha-value>)',
     },
   },
 }
 ```
+
+**Every token in `theme.css` must appear in this map.** `CLAUDE.md` forbids inlining a colour, so
+a token that exists in CSS but is not exposed to Tailwind leaves a component with no legal way to
+express it. Keep the two in sync; if a component needs a colour with no token, add the token
+rather than reaching for a literal.
+
+`foreground` rather than `text`, because Tailwind derives class names from the key and `text-text`
+is unusable. `foreground` / `accent-foreground` also matches the naming convention in wide use
+across component libraries, which makes the intent obvious to anyone reading the code.
+
+Set the base `color` and `background-color` on `body` in `theme.css` so the default is correct
+without every component restating it.
 
 Components then write `bg-surface`, `text-muted`, `text-positive`. **Never** `bg-zinc-900`,
 never a hex literal, never an inline `style` colour.
