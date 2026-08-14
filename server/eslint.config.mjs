@@ -13,6 +13,8 @@ export default tseslint.config(
       'no-undef': 'off',
       'no-console': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
+      // Express identifies error middleware by arity, so an unused `next` must stay declared.
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
   prettier,
