@@ -1024,12 +1024,23 @@ RETURNING *;
 prisma.user.findUnique({ where: { id }, include: { preferences: true } })
 ```
 ```sql
-SELECT u.*, p.*
-FROM users u
-LEFT JOIN preferences p ON p.user_id = u.id
-WHERE u.id = $1;
--- LEFT, not INNER: a user who has not onboarded has no preferences row, and an
--- INNER JOIN would return zero rows and read as "user not found".
+-- Prisma issues TWO statements here, not a join (verified with log: ['query']):
+SELECT id, email, name, password_hash, onboarding_completed_at, created_at, updated_at
+FROM users WHERE id = $1 LIMIT $2 OFFSET $3;
+
+SELECT id, user_id, assets, investor_type::text, content_types::text[], created_at, updated_at
+FROM preferences WHERE user_id IN ($1) OFFSET $2;
+
+-- One extra statement per *relation*, not per row, so the count is constant: not N+1.
+-- Note it names columns rather than SELECT *, and casts enums to text on the way out.
+--
+-- The single-statement equivalent would be the join below, and LEFT is the point:
+--   SELECT u.*, p.* FROM users u
+--   LEFT JOIN preferences p ON p.user_id = u.id
+--   WHERE u.id = $1;
+-- INNER would return zero rows for a user who has not onboarded, which reads as
+-- "user not found" — the same bug the two-query form cannot have, since a missing
+-- preferences row simply comes back as null.
 ```
 
 ```ts
@@ -1078,7 +1089,9 @@ SELECT * FROM daily_insights WHERE user_id = $1 AND for_date = $2;
 **Concepts underpinning these:** `INNER` vs `LEFT JOIN`; `GROUP BY` with aggregates; what an
 index does and why `WHERE email = $1` benefits from one; `ON CONFLICT` / upsert semantics;
 transactions and atomicity; why parameterized queries prevent injection; and the N+1 problem
-— avoided here because Prisma's `include` joins rather than issuing a query per row.
+— avoided here because `include` costs one additional query per *relation*, not one per row.
+Prisma loads relations with separate queries by default rather than a JOIN, so the query count
+stays constant as the row count grows.
 
 ---
 
@@ -1175,9 +1188,11 @@ Both strings point at the **same database**; they differ only in endpoint.
 - **`DATABASE_URL` (pooled)** — routes through a connection pooler (PgBouncer). Correct for
   application runtime: many short-lived connections are multiplexed onto few backend
   processes, which is what keeps a small instance from exhausting its connection limit.
-- **`DIRECT_URL` (direct)** — bypasses the pooler. Required by Prisma CLI commands
-  (`migrate dev`, `migrate deploy`, `db seed`) because a pooler in transaction mode does not
-  support the DDL those commands issue.
+- **`DIRECT_URL` (direct)** — bypasses the pooler. Required by Prisma Migrate (`migrate dev`,
+  `migrate deploy`) and introspection, because a pooler in transaction mode does not support
+  the DDL those commands issue. `db seed` is **not** in that list: it only executes the seed
+  script, whose `PrismaClient` connects over the pooled `DATABASE_URL` like any other
+  application code.
 
 **Recognise this failure.** Omitting `DIRECT_URL` makes Prisma fall back to the pooled URL for
 migrations, which fails with messages like *"cannot start a transaction in prepared statements
@@ -1222,7 +1237,10 @@ no document at all, because it misleads with authority.
 
 | § | Designed | Built | Why it changed |
 |---|---|---|---|
-| | | | |
+| §4 | Field names unmapped, so Prisma would create camelCase columns | `@map("snake_case")` on every field; table `@@map`s unchanged | §12 and §4.4 are written in snake_case. Unquoted identifiers fold to lowercase in Postgres, so `f.section_type` would have errored against a `sectionType` column — the raw-SQL module in §3.4 could not have run as documented. The alternative was quoting every identifier (`f."sectionType"`) in all hand-written SQL, forever. The Prisma client API is unaffected. |
+| §4 | `generator client { provider = "prisma-client-js" }` | `prisma` and `@prisma/client` pinned to exactly `6.19.2` | Prisma 7 (current `latest`, 7.9.1) replaces this generator with `prisma-client` + a required `output` path, imports the client from that path rather than `@prisma/client`, and requires a driver adapter in the constructor — three changes to satisfy a version bump that buys this project nothing. v6 is a maintained track, not legacy: Prisma's tooling supports v6 and v7 side by side, and 6.19 is the current stable v6 release, still the version Prisma's own docs recommend for MongoDB pending v7 support. **Revisit if v6 stops receiving fixes.** |
+| §4 | Generator block written on one line | Expanded to three lines | Prisma's schema language rejects a single-line block (`P1012`). Formatting only. |
+| §15 | — | Seed refuses to run when `NODE_ENV=production` | The seed hashes a password that is committed in the repository. Without the guard, one careless `prisma db seed` against production creates a live account whose credentials are public. Three lines; deletable if you disagree. |
 
 *If this table is empty at the end of the project, that is itself worth noting — either the
 design held, or it was not being checked.*

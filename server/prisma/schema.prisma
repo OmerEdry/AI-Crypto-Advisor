@@ -1,0 +1,99 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled — application runtime
+  directUrl = env("DIRECT_URL") // direct — migrations (see §15.1)
+}
+
+enum InvestorType {
+  HODLER
+  DAY_TRADER
+  NFT_COLLECTOR
+}
+
+enum ContentType {
+  MARKET_NEWS
+  CHARTS
+  SOCIAL
+  FUN
+}
+
+enum SectionType {
+  NEWS
+  PRICES
+  INSIGHT
+  MEME
+}
+
+enum VoteType {
+  UP
+  DOWN
+}
+
+model User {
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  name                  String
+  passwordHash          String    @map("password_hash")
+  onboardingCompletedAt DateTime? @map("onboarding_completed_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  preferences Preference?
+  feedback    Feedback[]
+  insights    DailyInsight[]
+
+  @@map("users")
+}
+
+model Preference {
+  id           String        @id @default(cuid())
+  userId       String        @unique @map("user_id")
+  assets       String[] // CoinGecko coin ids, e.g. ["bitcoin","ethereum"]
+  investorType InvestorType  @map("investor_type")
+  contentTypes ContentType[] @map("content_types")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("preferences")
+}
+
+model Feedback {
+  id          String      @id @default(cuid())
+  userId      String      @map("user_id")
+  sectionType SectionType @map("section_type")
+  itemRef     String      @map("item_ref") // stable id of the voted item — §4.3
+  vote        VoteType
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sectionType, itemRef])
+  @@index([userId, createdAt])
+  @@index([sectionType, vote])
+  @@map("feedback")
+}
+
+model DailyInsight {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  forDate       DateTime @map("for_date") @db.Date // UTC calendar date
+  content       String   @db.Text
+  model         String // which LLM produced it
+  promptVersion String   @map("prompt_version") // e.g. "v1"
+  source        String // "llm" | "fallback"
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, forDate])
+  @@map("daily_insights")
+}
