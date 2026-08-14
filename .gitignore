@@ -11,3 +11,4 @@ coverage/
 .DS_Store
 
 BUILD_PLAN.md
+.claude/settings.local.json
