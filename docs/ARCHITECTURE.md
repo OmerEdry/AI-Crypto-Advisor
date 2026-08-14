@@ -461,6 +461,18 @@ piece of the deployment, so the response is planned rather than improvised:
    fallbacks above preserve it. If cross-origin cookies are the problem, the answer is to stop
    being cross-origin, not to stop protecting the token.
 
+**What CORS is actually doing here — worth being precise about.** Under the rewrite, the browser's
+request is same-origin, and the proxy's onward request to the API is server-to-server and carries
+no browser `Origin` header. So **CORS is not what makes production login work** — `SameSite=Lax`
+on a first-party cookie is. The CORS allowlist remains correct to have, and it is load-bearing in
+exactly two places: local development, where the SPA on one port genuinely does call the API on
+another, and any client hitting the API's own URL directly, bypassing the proxy.
+
+This distinction matters because "CORS lets my frontend talk to my backend" is the common and
+wrong mental model. CORS is a browser-enforced policy about which *origins* may read a response;
+it has nothing to do with authentication, and it does not apply to requests a server makes on its
+own behalf. Under this topology the browser never makes a cross-origin request at all.
+
 ### 6.3 Response status — how sections report degradation
 
 Every content endpoint returns a `status`:
@@ -758,7 +770,7 @@ be an environment variable, not a code change.
 placeholder, its articles need real titles, real sources, real dates and correct asset tags.
 This is a content requirement, not a stub.
 
-
+### 9.3 Error-handling discipline
 
 - **One `try/catch` per provider call, at the service boundary** — not scattered through
   controllers and helpers. The catch maps the failure to a typed `AppError` with a specific
@@ -830,7 +842,7 @@ and never a raw value.
   --color-border:       39 39 42;
   --color-text:        250 250 250;
   --color-text-muted:  161 161 170;
-  --color-accent:      /* set by the design pass */;
+  --color-accent:      250 250 250;    /* PROVISIONAL — monochrome. Step 15 design pass replaces this */
   --color-accent-fg:     9 9 11;
   --color-positive:     34 197 94;
   --color-negative:    239 68 68;
@@ -843,17 +855,32 @@ and never a raw value.
 theme: {
   extend: {
     colors: {
-      bg:         'rgb(var(--color-bg) / <alpha-value>)',
-      surface:    'rgb(var(--color-surface) / <alpha-value>)',
-      border:     'rgb(var(--color-border) / <alpha-value>)',
-      muted:      'rgb(var(--color-text-muted) / <alpha-value>)',
-      accent:     'rgb(var(--color-accent) / <alpha-value>)',
-      positive:   'rgb(var(--color-positive) / <alpha-value>)',
-      negative:   'rgb(var(--color-negative) / <alpha-value>)',
+      bg:                  'rgb(var(--color-bg) / <alpha-value>)',
+      surface:             'rgb(var(--color-surface) / <alpha-value>)',
+      'surface-alt':       'rgb(var(--color-surface-alt) / <alpha-value>)',
+      border:              'rgb(var(--color-border) / <alpha-value>)',
+      foreground:          'rgb(var(--color-text) / <alpha-value>)',
+      muted:               'rgb(var(--color-text-muted) / <alpha-value>)',
+      accent:              'rgb(var(--color-accent) / <alpha-value>)',
+      'accent-foreground': 'rgb(var(--color-accent-fg) / <alpha-value>)',
+      positive:            'rgb(var(--color-positive) / <alpha-value>)',
+      negative:            'rgb(var(--color-negative) / <alpha-value>)',
     },
   },
 }
 ```
+
+**Every token in `theme.css` must appear in this map.** `CLAUDE.md` forbids inlining a colour, so
+a token that exists in CSS but is not exposed to Tailwind leaves a component with no legal way to
+express it. Keep the two in sync; if a component needs a colour with no token, add the token
+rather than reaching for a literal.
+
+`foreground` rather than `text`, because Tailwind derives class names from the key and `text-text`
+is unusable. `foreground` / `accent-foreground` also matches the naming convention in wide use
+across component libraries, which makes the intent obvious to anyone reading the code.
+
+Set the base `color` and `background-color` on `body` in `theme.css` so the default is correct
+without every component restating it.
 
 Components then write `bg-surface`, `text-muted`, `text-positive`. **Never** `bg-zinc-900`,
 never a hex literal, never an inline `style` colour.
@@ -997,12 +1024,23 @@ RETURNING *;
 prisma.user.findUnique({ where: { id }, include: { preferences: true } })
 ```
 ```sql
-SELECT u.*, p.*
-FROM users u
-LEFT JOIN preferences p ON p.user_id = u.id
-WHERE u.id = $1;
--- LEFT, not INNER: a user who has not onboarded has no preferences row, and an
--- INNER JOIN would return zero rows and read as "user not found".
+-- Prisma issues TWO statements here, not a join (verified with log: ['query']):
+SELECT id, email, name, password_hash, onboarding_completed_at, created_at, updated_at
+FROM users WHERE id = $1 LIMIT $2 OFFSET $3;
+
+SELECT id, user_id, assets, investor_type::text, content_types::text[], created_at, updated_at
+FROM preferences WHERE user_id IN ($1) OFFSET $2;
+
+-- One extra statement per *relation*, not per row, so the count is constant: not N+1.
+-- Note it names columns rather than SELECT *, and casts enums to text on the way out.
+--
+-- The single-statement equivalent would be the join below, and LEFT is the point:
+--   SELECT u.*, p.* FROM users u
+--   LEFT JOIN preferences p ON p.user_id = u.id
+--   WHERE u.id = $1;
+-- INNER would return zero rows for a user who has not onboarded, which reads as
+-- "user not found" — the same bug the two-query form cannot have, since a missing
+-- preferences row simply comes back as null.
 ```
 
 ```ts
@@ -1051,7 +1089,9 @@ SELECT * FROM daily_insights WHERE user_id = $1 AND for_date = $2;
 **Concepts underpinning these:** `INNER` vs `LEFT JOIN`; `GROUP BY` with aggregates; what an
 index does and why `WHERE email = $1` benefits from one; `ON CONFLICT` / upsert semantics;
 transactions and atomicity; why parameterized queries prevent injection; and the N+1 problem
-— avoided here because Prisma's `include` joins rather than issuing a query per row.
+— avoided here because `include` costs one additional query per *relation*, not one per row.
+Prisma loads relations with separate queries by default rather than a JOIN, so the query count
+stays constant as the row count grows.
 
 ---
 
@@ -1148,9 +1188,11 @@ Both strings point at the **same database**; they differ only in endpoint.
 - **`DATABASE_URL` (pooled)** — routes through a connection pooler (PgBouncer). Correct for
   application runtime: many short-lived connections are multiplexed onto few backend
   processes, which is what keeps a small instance from exhausting its connection limit.
-- **`DIRECT_URL` (direct)** — bypasses the pooler. Required by Prisma CLI commands
-  (`migrate dev`, `migrate deploy`, `db seed`) because a pooler in transaction mode does not
-  support the DDL those commands issue.
+- **`DIRECT_URL` (direct)** — bypasses the pooler. Required by Prisma Migrate (`migrate dev`,
+  `migrate deploy`) and introspection, because a pooler in transaction mode does not support
+  the DDL those commands issue. `db seed` is **not** in that list: it only executes the seed
+  script, whose `PrismaClient` connects over the pooled `DATABASE_URL` like any other
+  application code.
 
 **Recognise this failure.** Omitting `DIRECT_URL` makes Prisma fall back to the pooled URL for
 migrations, which fails with messages like *"cannot start a transaction in prepared statements
@@ -1195,7 +1237,24 @@ no document at all, because it misleads with authority.
 
 | § | Designed | Built | Why it changed |
 |---|---|---|---|
-| | | | |
+| §4 | Field names unmapped, so Prisma would create camelCase columns | `@map("snake_case")` on every field; table `@@map`s unchanged | §12 and §4.4 are written in snake_case. Unquoted identifiers fold to lowercase in Postgres, so `f.section_type` would have errored against a `sectionType` column — the raw-SQL module in §3.4 could not have run as documented. The alternative was quoting every identifier (`f."sectionType"`) in all hand-written SQL, forever. The Prisma client API is unaffected. |
+| §4 | `generator client { provider = "prisma-client-js" }` | `prisma` and `@prisma/client` pinned to exactly `6.19.2` | Prisma 7 (current `latest`, 7.9.1) replaces this generator with `prisma-client` + a required `output` path, imports the client from that path rather than `@prisma/client`, and requires a driver adapter in the constructor — three changes to satisfy a version bump that buys this project nothing. v6 is a maintained track, not legacy: Prisma's tooling supports v6 and v7 side by side, and 6.19 is the current stable v6 release, still the version Prisma's own docs recommend for MongoDB pending v7 support. **Revisit if v6 stops receiving fixes.** |
+| §4 | Generator block written on one line | Expanded to three lines | Prisma's schema language rejects a single-line block (`P1012`). Formatting only. |
+| §15 | — | Seed refuses to run when `NODE_ENV=production` | The seed hashes a password that is committed in the repository. Without the guard, one careless `prisma db seed` against production creates a live account whose credentials are public. Three lines; deletable if you disagree. |
+| §5 | `AppError.ts`, `errorHandler.ts` | `app-error.ts`, `error-handler.ts`, `not-found.ts` | `CLAUDE.md` §5 requires `kebab-case.ts` for modules and is the more specific rule; §5's tree used PascalCase/camelCase for the same files. |
+| §5 | `routes.ts` mounts module routers under `/api` | Not created; `/healthz` registers directly in `app.ts` | There are no modules until Step 5, so the file would mount nothing — dead code by `CLAUDE.md` §5. Created in Step 5 when it has something to mount. |
+| §3.2 | "Express" | Pinned exact `express@5.2.1` | Express 5 forwards a rejected promise from an async handler to the error middleware automatically. On Express 4 an `await` that throws never reaches `errorHandler.ts` and the request hangs, so "errors are formatted in exactly one place" would hold only if every async controller carried a `try/catch` — a rule kept by memory rather than by the framework. **Consequence for §6.2c:** Express 5 removed bare `*` route patterns, so the SPA-from-Express fallback needs a named wildcard (`app.get('/*splat', …)`), not `app.get('*', …)`. |
+| §15 | "zod" | Pinned exact `zod@4.4.3` | Two v4 deltas that Step 5 must not write from v3 memory: `z.string().email()` is superseded by `z.email()`, and the `required_error` / `invalid_type_error` options are replaced by a single `error` option. The `issues` array that §6.4's `details` maps from is unchanged. |
+| §15 | "throws at boot on anything missing" | Everything required except `CRYPTOPANIC_TOKEN` and `LLM_MODEL` | §15's own example leaves both blank, so "all required" could not be literal. `COINGECKO_API_KEY` and `OPENROUTER_API_KEY` are required from Step 3 even though no code reads them until Steps 7 and 9. **This is a decision, not an oversight:** a missing production variable should kill the Step 4 deploy immediately, rather than surface weeks later as one broken dashboard section. |
+| §15 | — | Dev loads `.env` via `node --env-file`, not `dotenv` | The app process does not read `.env` on its own, and `dotenv` is named nowhere in this document. `tsx watch --env-file=.env` uses a built-in Node flag instead of adding a dependency. Raises the floor to Node ≥20.6; production passes no flag, since the platform supplies real environment variables. |
+| §6.4 | Nine codes, none mapping to 503 | Unchanged — **open item** | §9.2 specifies "database unreachable → 503 + retry", but the taxonomy has no 503 code and `INTERNAL_ERROR` 500 tells the client "we broke" rather than "retry shortly". No code path reaches it before Step 5, so the gap is recorded rather than filled with an unused code. **Resolve when the database error path is built.** |
+| §6.4 | — | `express.json` rejections map to `VALIDATION_ERROR` 400 | A body over the 10kb limit raises a 413 and malformed JSON a 400, both before any route runs. Mapped to `INTERNAL_ERROR` by default they returned **500** — blaming the server for the caller's mistake. Found by testing, not by reading. The taxonomy has no 413, so both become `VALIDATION_ERROR` with a message naming which occurred. |
+| §6.4 | "stack traces are logged server-side" | 5xx logs at `error` with the stack; 4xx logs at `warn` without it | A stack for every 404 from a passing scanner buries the failures that matter. The response body carries no stack in any environment, as specified. |
+| §6.2c | Two rewrite rules: `/api/:path*` and the SPA fallback | Three rules — `/api/:path*`, **`/healthz`**, then the fallback | §6.1 puts health at `/healthz`, outside `/api`, so the two-rule set never proxied it and `BUILD_PLAN`'s smoke check (`<spa-url>/api/healthz` → 200) was unsatisfiable against the documented contract. **The check was wrong, not the contract** — the smoke test is now `<spa-url>/healthz`. The path was fixed deliberately in Step 1 so implementations could change underneath it, and §9.4's warm-up ping targets it: without the rule that ping would hit the SPA fallback and return `index.html`, appearing to succeed while never waking the API. |
+| §6.2c | — | **Diagnostic worth keeping: read the content-type of a failed health check** | A 404 carrying **our JSON envelope** means the proxy reached the API and only the path is wrong. A 404 or 200 of **HTML** means the rewrite never fired and Vercel answered from the SPA fallback. Same status code, opposite causes; the body distinguishes them faster than any dashboard will. |
+| §2, §15 | One Neon database implied | Neon branch `prod`, with a fresh empty database `crypto_advisor`, serves production; the parent branch stays the dev database | Branching alone was not enough: a Neon branch copies its parent's **data**, so it would have carried `demo@example.com` — whose password is committed in this repository — onto a public URL. A new empty database inside the branch has nothing to delete. It also stops local development writing to the rows the live site serves. |
+| §2, §13 | — | **Naming collision, stated once so it is never re-derived** | Three unrelated things share the word *production*: the Neon branch named `production` is the **dev** database (Neon's default name for the parent), the Render **Production** environment is the deployed service, and `NODE_ENV=production` is the runtime flag driving `secure: true` on the auth cookie. The database behind the live site is the branch named **`prod`**. |
+| BUILD_PLAN §4 | Render build: `npm install && npx prisma generate && npm run build` | Appends `&& npx prisma migrate deploy` | The step requires migrations applied but the stated command never applies them, so every future merge to `main` would deploy code without its schema unless someone remembered. Migrations run **last**, so a build that fails to compile has not already altered the production schema. |
 
 *If this table is empty at the end of the project, that is itself worth noting — either the
 design held, or it was not being checked.*

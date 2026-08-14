@@ -1,6 +1,6 @@
 # CLAUDE.md — operating instructions for this repository
 
-Read this file fully before writing any code. Re-read `ARCHITECTURE.md` before starting each
+Read this file fully before writing any code. Re-read `docs/ARCHITECTURE.md` before starting each
 step of `BUILD_PLAN.md`.
 
 ---
@@ -104,11 +104,21 @@ The developer is building working knowledge of this system, not just shipping it
   performance bug.
 
 ### Scope
-- **Do not** add anything not in `ARCHITECTURE.md` or `BUILD_PLAN.md`. No opportunistic
+- **Do not** add anything not in `docs/ARCHITECTURE.md` or `BUILD_PLAN.md`. No opportunistic
   refactors, no extra endpoints, no speculative configuration.
 - **Do not** install a dependency without naming it and its purpose first.
 - **Do not** write tests before the step that calls for them — not because tests are
   unimportant, but because the sequence is deliberate.
+- **Do not edit `docs/ARCHITECTURE.md`, `CLAUDE.md`, or `BUILD_PLAN.md`.** These are the
+  specification and the conventions. They sit upstream of the code and are maintained by the
+  developer. When you find an error, contradiction, or gap in them — and you should say so
+  whenever you do — **report it and stop.** Do not fix it yourself and do not silently work
+  around it.
+
+  This is not a formality. A specification the implementer can rewrite is not a constraint, and
+  a document that always agrees with the code has stopped carrying information. The single
+  exception is `docs/ARCHITECTURE.md` §17, the deviations table, and only when the developer
+  explicitly asks you to record something there.
 
 ## 5. Code conventions
 
