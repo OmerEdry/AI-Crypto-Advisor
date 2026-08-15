@@ -5,8 +5,10 @@ import type { LlmPrompt } from './prompt';
 
 const COMPLETIONS_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-// §9.3: 10s for the LLM, longer than a data provider because generation genuinely takes longer.
-const TIMEOUT_MS = 10_000;
+// Raised from §9.3's 10s after measuring that value abort on an ordinary `:free` generation.
+// Because the insight is persisted per UTC day, a timeout does not cost one slow render — it
+// locks the template in until tomorrow, so waiting longer is the cheaper mistake here. See §17.
+const TIMEOUT_MS = 20_000;
 
 // OpenAI-compatible. `model` at the root of the response is what actually served the request,
 // which can differ from what was asked for, so it is that value we persist.
