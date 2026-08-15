@@ -8,7 +8,10 @@ const envSchema = z.object({
   DIRECT_URL: z.string().min(1),
 
   JWT_SECRET: z.string().min(32, 'must be at least 32 characters'),
-  JWT_EXPIRES_IN: z.string().min(1).default('7d'),
+  // An enum rather than a free string so a typo fails at boot. jsonwebtoken types `expiresIn`
+  // as a template-literal union, which a plain `string` is not assignable to; these five
+  // literals are, and token.service.ts maps each to the matching cookie lifetime.
+  JWT_EXPIRES_IN: z.enum(['15m', '1h', '1d', '7d', '30d']).default('7d'),
   COOKIE_NAME: z.string().min(1).default('cca_token'),
 
   CORS_ORIGINS: z
