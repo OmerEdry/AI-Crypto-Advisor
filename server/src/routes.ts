@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authRouter } from './modules/auth/auth.routes';
+import { feedbackRouter } from './modules/feedback/feedback.routes';
 import { insightRouter } from './modules/insight/insight.routes';
 import { marketRouter } from './modules/market/market.routes';
 import { memesRouter } from './modules/memes/memes.routes';
@@ -12,3 +13,4 @@ apiRouter.use('/preferences', preferencesRouter);
 apiRouter.use('/market', marketRouter);
 apiRouter.use('/insight', insightRouter);
 apiRouter.use('/memes', memesRouter);
+apiRouter.use('/feedback', feedbackRouter);

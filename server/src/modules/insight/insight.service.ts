@@ -3,6 +3,7 @@ import { env } from '../../config/env';
 import { AppError } from '../../errors/app-error';
 import { logger } from '../../lib/logger';
 import { prisma } from '../../lib/prisma';
+import * as feedbackService from '../feedback/feedback.service';
 import * as pricesService from '../market/prices.service';
 import * as preferencesService from '../preferences/preferences.service';
 import { createCompletion } from './llm/openrouter.client';
@@ -61,12 +62,18 @@ async function buildInput(userId: string): Promise<InsightInput> {
   // would have raced the dashboard's parallel requests and baked a price-less insight in for the
   // entire day.
   const prices = await pricesService.getPricesFor(userId);
+  // Through the service rather than the repository, matching the prices call above: this module
+  // depends on what the feedback module returns, not on how it queries. No try/catch — §9.3's
+  // rule is one catch per *provider* call, and this is our own database, whose connection-class
+  // failures are mapped once in error-handler.ts.
+  const feedback = await feedbackService.getVoteSummary(userId);
 
   return {
     investorType: preferences.investorType,
     assets: preferences.assets,
     contentTypes: preferences.contentTypes,
     coins: prices.coins,
+    feedback,
   };
 }
 
@@ -82,9 +89,16 @@ async function generate(input: InsightInput): Promise<GeneratedInsight> {
   }
 
   const startedAt = Date.now();
+  const prompt = buildInsightPrompt(input);
+
+  // Logged in full, on the generate path only — at most one line per user per UTC day, since
+  // every later request that day reads the stored row. This is the standing evidence for the PII
+  // claim: what appears here is exactly what leaves for OpenRouter, so the claim can be read
+  // rather than trusted.
+  logger.info('Built insight prompt', { promptVersion: PROMPT_VERSION, prompt: prompt.user });
 
   try {
-    const completion = await createCompletion(buildInsightPrompt(input), env.LLM_MODEL);
+    const completion = await createCompletion(prompt, env.LLM_MODEL);
 
     return { content: completion.content, model: completion.model, source: 'llm' };
   } catch (error) {
