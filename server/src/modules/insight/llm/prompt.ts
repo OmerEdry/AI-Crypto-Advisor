@@ -1,16 +1,19 @@
-import type { ContentType, InvestorType } from '@prisma/client';
+import type { ContentType, InvestorType, SectionType } from '@prisma/client';
+import type { VoteSummaryEntry } from '../../feedback/feedback.service';
 import type { CoinPrice } from '../../market/providers/coingecko.provider';
 
 // §8.2. Stored on every row so historical insights stay attributable to the prompt that produced
-// them; without it, comparing two prompts after the fact is guesswork. Step 11 adds the feedback
-// line and must bump this — a different prompt is a different version.
-export const PROMPT_VERSION = 'v1';
+// them; without it, comparing two prompts after the fact is guesswork. v2 adds the feedback
+// signal line — a different prompt is a different version, which is what per-row versioning is
+// for: leaving this at v1 would make two prompts indistinguishable in the stored data.
+export const PROMPT_VERSION = 'v2';
 
 export interface InsightInput {
   investorType: InvestorType;
   assets: string[];
   contentTypes: ContentType[];
   coins: CoinPrice[];
+  feedback: VoteSummaryEntry[];
 }
 
 export interface LlmPrompt {
@@ -42,13 +45,43 @@ function priceSummary(coins: CoinPrice[], window: 'change24h' | 'change30d'): st
   return parts.length > 0 ? parts.join(', ') : undefined;
 }
 
+const SECTION_LABEL: Record<SectionType, string> = {
+  NEWS: 'news',
+  PRICES: 'prices',
+  INSIGHT: 'insights',
+  MEME: 'memes',
+};
+
+// NF3, in one function: the votes stored yesterday become a line in today's prompt. A section is
+// summarised by its net score, so three upvotes and one downvote reads as "upvoted". An exact tie
+// is omitted rather than reported — it carries no direction, and a 60-word budget has no room for
+// a phrase that says nothing.
+function feedbackSignal(entries: VoteSummaryEntry[]): string | undefined {
+  const netBySection = new Map<SectionType, number>();
+
+  for (const entry of entries) {
+    const delta = entry.vote === 'UP' ? entry.total : -entry.total;
+
+    netBySection.set(entry.sectionType, (netBySection.get(entry.sectionType) ?? 0) + delta);
+  }
+
+  const parts = [...netBySection.entries()]
+    .filter(([, net]) => net !== 0)
+    .map(([section, net]) => `${net > 0 ? 'upvoted' : 'downvoted'} ${SECTION_LABEL[section]}`);
+
+  return parts.length > 0 ? parts.join(', ') : undefined;
+}
+
 export function buildInsightPrompt(input: InsightInput): LlmPrompt {
   const profile = PROFILE[input.investorType];
   const summary = priceSummary(input.coins, profile.window);
   const windowLabel = profile.window === 'change30d' ? '30d' : '24h';
+  const signal = feedbackSignal(input.feedback);
 
-  // Only the four preference-derived facts and public market data. No name, no email, no user id
-  // — nothing that identifies the person behind the watchlist reaches a third party (§6.2b).
+  // Only the preference-derived facts, public market data, and — from v2 — section names with a
+  // vote direction. No name, no email, no user id, and no itemRef: which coin or article was
+  // voted on stays in Postgres. Nothing identifying the person behind the watchlist reaches a
+  // third party (§6.2b).
   const lines = [
     `Investor profile: ${input.investorType}`,
     `Watching: ${input.assets.join(', ')}`,
@@ -57,6 +90,12 @@ export function buildInsightPrompt(input: InsightInput): LlmPrompt {
 
   if (summary !== undefined) {
     lines.push(`Recent ${windowLabel} moves: ${summary}`);
+  }
+
+  // A user who has never voted gets no line at all. "No feedback yet" would spend words to say
+  // nothing, and the model has 60 of them.
+  if (signal !== undefined) {
+    lines.push(`Recent feedback signal: ${signal}`);
   }
 
   lines.push('', "Write today's insight for this investor.");
