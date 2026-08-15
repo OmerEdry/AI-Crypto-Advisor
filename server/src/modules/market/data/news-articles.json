@@ -1,0 +1,66 @@
+[
+  {
+    "id": "news-1",
+    "title": "Ethereum staking token weETH splits from restaking as rewards debate heats up",
+    "url": "https://www.coindesk.com/tech/2026/08/07/ethereum-staking-token-weeth-splits-from-restaking-as-rewards-debate-heats-up",
+    "source": "CoinDesk",
+    "publishedAt": "2026-08-07",
+    "assets": ["ethereum"]
+  },
+  {
+    "id": "news-2",
+    "title": "New Ethereum proposal would cut issuance to zero if staked ETH reaches $112 billion",
+    "url": "https://www.coindesk.com/tech/2026/08/05/new-ethereum-proposal-would-cut-issuance-to-zero-if-staked-eth-reaches-usd112-billion",
+    "source": "CoinDesk",
+    "publishedAt": "2026-08-05",
+    "assets": ["ethereum"]
+  },
+  {
+    "id": "news-3",
+    "title": "Top Altcoins Price Forecast: Ripple hits 20-month low as Cardano and Solana lack momentum",
+    "url": "https://www.fxstreet.com/cryptocurrencies/news/top-altcoins-price-forecast-ripple-hits-20-month-low-as-cardano-and-solana-lack-momentum-202608110434",
+    "source": "FXStreet",
+    "publishedAt": "2026-08-11",
+    "assets": ["ripple", "cardano", "solana"]
+  },
+  {
+    "id": "news-4",
+    "title": "Chainlink Price Surges 5% After Standard Chartered's $200 Target: Can LINK Break $9?",
+    "url": "https://coinpedia.org/price-analysis/chainlink-price-surges-5-after-standard-chartereds-200-target-can-link-break-9/",
+    "source": "Coinpedia",
+    "publishedAt": "2026-08-11",
+    "assets": ["chainlink"]
+  },
+  {
+    "id": "news-5",
+    "title": "Current price of Bitcoin for August 14, 2026",
+    "url": "https://fortune.com/article/price-of-bitcoin-08-14-2026/",
+    "source": "Fortune",
+    "publishedAt": "2026-08-14",
+    "assets": ["bitcoin"]
+  },
+  {
+    "id": "news-6",
+    "title": "Dogecoin and BNB lead majors higher as bitcoin slips near $63,700",
+    "url": "https://www.coindesk.com/markets/2026/08/12/dogecoin-and-bnb-lead-majors-higher-as-bitcoin-slips-near-usd63-700",
+    "source": "CoinDesk",
+    "publishedAt": "2026-08-12",
+    "assets": ["dogecoin", "binancecoin", "bitcoin"]
+  },
+  {
+    "id": "news-7",
+    "title": "Grayscale quietly drops Cardano, Polkadot and Hedera ETF plans",
+    "url": "https://www.coindesk.com/business/2026/08/10/grayscale-quietly-drops-cardano-polkadot-and-hedera-etf-plans",
+    "source": "CoinDesk",
+    "publishedAt": "2026-08-10",
+    "assets": ["cardano", "polkadot", "hedera-hashgraph"]
+  },
+  {
+    "id": "news-8",
+    "title": "The biggest consensus overhaul in Solana history is officially live for testing",
+    "url": "https://www.coindesk.com/tech/2026/05/11/the-biggest-consensus-overhaul-in-solana-history-is-officially-live-for-testing",
+    "source": "CoinDesk",
+    "publishedAt": "2026-05-11",
+    "assets": ["solana"]
+  }
+]
