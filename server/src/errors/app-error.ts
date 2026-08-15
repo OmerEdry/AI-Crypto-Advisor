@@ -10,6 +10,7 @@ const ERROR_STATUS = {
   INTERNAL_ERROR: 500,
   UPSTREAM_ERROR: 502,
   UPSTREAM_RATE_LIMITED: 502,
+  SERVICE_UNAVAILABLE: 503,
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_STATUS;

@@ -1,6 +1,24 @@
 import type { ErrorRequestHandler } from 'express';
+import { Prisma } from '@prisma/client';
 import { AppError } from '../errors/app-error';
 import { logger } from '../lib/logger';
+
+// Connection-class failures carry no business meaning — no service can degrade around an
+// unreachable database — so they map identically everywhere and are handled here rather than
+// repeated in a catch inside every service. Failures a service *can* interpret, such as the
+// unique violation behind a duplicate email, stay at the service boundary.
+const UNREACHABLE_DATABASE_CODES = ['P1001', 'P1002', 'P1017'];
+
+function isDatabaseUnreachable(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientInitializationError) {
+    return true;
+  }
+
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    UNREACHABLE_DATABASE_CODES.includes(error.code)
+  );
+}
 
 // express.json rejects a malformed or oversized body before any route runs, and those are the
 // caller's mistake rather than ours. Without this they would surface as INTERNAL_ERROR 500.
@@ -26,6 +44,13 @@ function toAppError(error: unknown): AppError {
 
   if (bodyMessage !== undefined) {
     return new AppError('VALIDATION_ERROR', bodyMessage);
+  }
+
+  if (isDatabaseUnreachable(error)) {
+    return new AppError(
+      'SERVICE_UNAVAILABLE',
+      'The service is temporarily unavailable. Try again in a few seconds.',
+    );
   }
 
   return new AppError('INTERNAL_ERROR', 'The request failed unexpectedly. Try again in a moment.');
