@@ -89,7 +89,7 @@ The developer is building working knowledge of this system, not just shipping it
   narrow. No `@ts-ignore` without an adjacent comment explaining why.
 - **Validate every input** with zod at the HTTP boundary. Controllers receive already-parsed
   data.
-- **Every outbound HTTP call has an explicit timeout** — 5s for data providers, 10s for the
+- **Every outbound HTTP call has an explicit timeout** — 5s for data providers, 20s for the
   LLM. Without one, a hanging upstream becomes a hanging request and then an exhausted
   connection pool.
 - **One `try/catch` per provider call, at the service boundary.** Not scattered through
