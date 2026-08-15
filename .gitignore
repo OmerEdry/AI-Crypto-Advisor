@@ -10,5 +10,8 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 
+# curl cookie jars from manual auth verification — these hold a live session token
+cookies.txt
+
 BUILD_PLAN.md
 .claude/settings.local.json
