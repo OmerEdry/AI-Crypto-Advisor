@@ -52,14 +52,23 @@ export async function login(input: LoginInput): Promise<AuthResult> {
   return { user: toPublicUser(user), token: signAccessToken({ sub: user.id }) };
 }
 
+export interface Session {
+  user: PublicUser;
+  hasCompletedOnboarding: boolean;
+}
+
 // Reads the row rather than trusting the token's claim: the account may have been deleted
-// since the token was signed, and a stateless token has no way to know that.
-export async function getUser(userId: string): Promise<PublicUser> {
+// since the token was signed, and a stateless token has no way to know that. The same read
+// answers the onboarding gate, so /me stays one query.
+export async function getSession(userId: string): Promise<Session> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
 
   if (!user) {
     throw new AppError('UNAUTHORIZED', 'Your session has ended. Sign in again.');
   }
 
-  return toPublicUser(user);
+  return {
+    user: toPublicUser(user),
+    hasCompletedOnboarding: user.onboardingCompletedAt !== null,
+  };
 }

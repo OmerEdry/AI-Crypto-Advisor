@@ -48,6 +48,8 @@ export const me: RequestHandler = async (req, res) => {
     throw new AppError('UNAUTHORIZED', 'Sign in to continue.');
   }
 
-  const user = await authService.getUser(req.user.id);
-  res.status(200).json({ user });
+  // hasCompletedOnboarding is a sibling of `user`, not a field inside it: it describes the
+  // session's position in the flow, not the person.
+  const session = await authService.getSession(req.user.id);
+  res.status(200).json(session);
 };
