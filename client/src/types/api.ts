@@ -41,3 +41,87 @@ export interface PreferencesInput {
   investorType: InvestorType;
   contentTypes: ContentType[];
 }
+
+export interface Preferences extends PreferencesInput {
+  updatedAt: string;
+}
+
+// §6.3. `degraded` means something was served but not the real thing, and it arrives inside a
+// 200 because the request succeeded — the payload is simply not ideal, which is information the
+// client needs rather than an error condition.
+export type SectionStatus = 'ok' | 'degraded' | 'unavailable';
+
+// Both change windows are nullable: a coin without enough history returns null (§17).
+export interface CoinPrice {
+  id: string;
+  symbol: string;
+  name: string;
+  image: string;
+  price: number;
+  change24h: number | null;
+  change30d: number | null;
+}
+
+export interface PricesResponse {
+  status: SectionStatus;
+  coins: CoinPrice[];
+  cachedAt: string | null;
+  notice?: string;
+}
+
+// `itemRef` is `{provider}:{providerId}` per §4.3, and it is what a vote on this article
+// attaches to.
+export interface NewsArticle {
+  itemRef: string;
+  title: string;
+  url: string;
+  source: string;
+  publishedAt: string;
+  assets: string[];
+}
+
+export interface NewsResponse {
+  status: SectionStatus;
+  articles: NewsArticle[];
+  provider: string;
+  cachedAt: string;
+  notice?: string;
+}
+
+// `id` is here because §4.3 makes it the itemRef for an INSIGHT vote — without it the vote has
+// nothing to attach to (§17).
+export interface Insight {
+  id: string;
+  content: string;
+  forDate: string;
+}
+
+export interface InsightResponse {
+  status: SectionStatus;
+  insight: Insight;
+  notice?: string;
+}
+
+export interface Meme {
+  id: string;
+  title: string;
+  imageUrl: string;
+}
+
+export interface MemeResponse {
+  status: SectionStatus;
+  meme: Meme;
+}
+
+export type SectionType = 'NEWS' | 'PRICES' | 'INSIGHT' | 'MEME';
+export type VoteType = 'UP' | 'DOWN';
+
+// The client reads `votes` and not `summary`: the aggregation groups by section and vote and
+// discards `itemRef`, so only this array can answer "has this user voted on this item?".
+// `lastVotedAt` on the summary is deliberately not mirrored — §17 records that the alias is
+// wrong for any re-voted item, and nothing may depend on it until that is fixed.
+export interface UserVote {
+  sectionType: SectionType;
+  itemRef: string;
+  vote: VoteType;
+}

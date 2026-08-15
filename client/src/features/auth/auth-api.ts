@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from '../../lib/api-client';
+import { isRecord, shapeError } from '../../lib/parse';
 import type { PublicUser, Session } from '../../types/api';
 
 export interface LoginInput {
@@ -8,21 +9,6 @@ export interface LoginInput {
 
 export interface RegisterInput extends LoginInput {
   name: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-// §10.4 accepts that the hand-mirrored types can drift from the server's. These parsers are what
-// makes drift loud: a renamed field fails here, with a message naming the endpoint, instead of
-// rendering as `undefined` three components later.
-function shapeError(endpoint: string): ApiError {
-  return new ApiError(
-    'INTERNAL_ERROR',
-    `The server sent a response ${endpoint} could not read. Try again in a moment.`,
-    500,
-  );
 }
 
 function parseUser(value: unknown, endpoint: string): PublicUser {

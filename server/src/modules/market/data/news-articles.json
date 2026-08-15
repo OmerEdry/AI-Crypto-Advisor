@@ -54,13 +54,5 @@
     "source": "CoinDesk",
     "publishedAt": "2026-08-10",
     "assets": ["cardano", "polkadot", "hedera-hashgraph"]
-  },
-  {
-    "id": "news-8",
-    "title": "The biggest consensus overhaul in Solana history is officially live for testing",
-    "url": "https://www.coindesk.com/tech/2026/05/11/the-biggest-consensus-overhaul-in-solana-history-is-officially-live-for-testing",
-    "source": "CoinDesk",
-    "publishedAt": "2026-05-11",
-    "assets": ["solana"]
   }
 ]

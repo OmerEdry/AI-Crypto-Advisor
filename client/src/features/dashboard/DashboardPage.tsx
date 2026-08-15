@@ -1,31 +1,54 @@
-import { useNavigate } from 'react-router-dom';
-import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
-import { useAuth } from '../auth/use-auth';
+import { DashboardHeader } from './DashboardHeader';
+import { SlowRequestBanner } from './SlowRequestBanner';
+import { DEFAULT_PLACEMENTS, orderSections, type SectionKey } from './section-order';
+import { InsightSection } from './sections/InsightSection';
+import { MemeSection } from './sections/MemeSection';
+import { NewsSection } from './sections/NewsSection';
+import { PricesSection } from './sections/PricesSection';
+import { usePreferences } from './use-dashboard-queries';
+import type { InvestorType } from '../../types/api';
 
-// Placeholder for Step 15. It carries a name and a sign-out control because those are what
-// prove the guard resolved a real session and that clearing the cookie sends the guard the
-// other way — the sections themselves are built against the real design at Step 15.
-export default function DashboardPage() {
-  const { session, logout } = useAuth();
-  const navigate = useNavigate();
-
-  async function handleSignOut(): Promise<void> {
-    await logout();
-    navigate('/login', { replace: true });
+function renderSection(
+  key: SectionKey,
+  preferred: boolean,
+  investorType: InvestorType | undefined,
+) {
+  switch (key) {
+    case 'prices':
+      return <PricesSection preferred={preferred} investorType={investorType} />;
+    case 'news':
+      return <NewsSection preferred={preferred} />;
+    case 'insight':
+      return <InsightSection preferred={preferred} />;
+    case 'meme':
+      return <MemeSection preferred={preferred} />;
   }
+}
+
+export default function DashboardPage() {
+  const preferences = usePreferences();
+
+  // The order comes from a request of its own, so the first paint cannot know it. Rendering the
+  // default order and reordering when preferences land costs a reflow inside a few hundred
+  // milliseconds; blocking the page until preferences resolve would cost thirty to sixty
+  // seconds of empty screen against a sleeping instance, which is what §9.4 exists to prevent.
+  const placements = preferences.data
+    ? orderSections(preferences.data.contentTypes)
+    : DEFAULT_PLACEMENTS;
 
   return (
-    <main className="mx-auto max-w-md px-6 py-16">
-      <Card>
-        <h1 className="text-xl font-semibold">Signed in as {session?.user.name}</h1>
-        <p className="mt-2 text-muted">
-          Your dashboard is built in a later step. Everything behind this page is ready.
-        </p>
-        <div className="mt-6">
-          <Button onClick={() => void handleSignOut()}>Sign out</Button>
-        </div>
-      </Card>
-    </main>
+    <div className="min-h-screen">
+      <DashboardHeader />
+      {/* Sections fetch independently and fail independently (§6.2a), so each one below owns
+          its own query rather than reading from a page-level fetch. */}
+      <main className="mx-auto max-w-[80rem] space-y-6 px-8 py-8">
+        <SlowRequestBanner />
+        {placements.map((placement) => (
+          <div key={placement.key}>
+            {renderSection(placement.key, placement.preferred, preferences.data?.investorType)}
+          </div>
+        ))}
+      </main>
+    </div>
   );
 }
