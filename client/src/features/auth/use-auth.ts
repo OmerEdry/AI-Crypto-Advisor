@@ -17,6 +17,13 @@ export interface AuthContextValue {
 // components — which is what keeps Vite's fast refresh working on it.
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+// Where a signed-in visitor belongs. Written once so the redirect after signing in and the
+// guard on /login cannot disagree — a new account is never onboarded, so registration lands on
+// /onboarding by the same rule rather than by a second one.
+export function landingPath(session: Session): string {
+  return session.hasCompletedOnboarding ? '/dashboard' : '/onboarding';
+}
+
 export function useAuth(): AuthContextValue {
   const value = useContext(AuthContext);
 

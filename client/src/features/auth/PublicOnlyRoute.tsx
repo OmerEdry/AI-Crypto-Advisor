@@ -1,6 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { FullPageLoader } from '../../components/ui/Spinner';
-import { useAuth } from './use-auth';
+import { landingPath, useAuth } from './use-auth';
 
 // The same rule as ProtectedRoute, inverted: §10.3 sends an authenticated visitor away from
 // /login and /register. It waits for the answer for the same reason — redirecting on a guess
@@ -13,7 +13,7 @@ export function PublicOnlyRoute() {
   }
 
   if (session) {
-    return <Navigate to={session.hasCompletedOnboarding ? '/dashboard' : '/onboarding'} replace />;
+    return <Navigate to={landingPath(session)} replace />;
   }
 
   return <Outlet />;
