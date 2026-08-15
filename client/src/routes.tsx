@@ -4,6 +4,7 @@ import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { PublicOnlyRoute } from './features/auth/PublicOnlyRoute';
 import RegisterPage from './features/auth/RegisterPage';
 import DashboardPage from './features/dashboard/DashboardPage';
+import { OnboardingGate } from './features/onboarding/OnboardingGate';
 import OnboardingPage from './features/onboarding/OnboardingPage';
 import NotFoundPage from './NotFoundPage';
 
@@ -20,7 +21,9 @@ export function AppRoutes() {
 
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route element={<OnboardingGate />}>
+          <Route path="/onboarding" element={<OnboardingPage />} />
+        </Route>
         <Route path="/dashboard" element={<DashboardPage />} />
       </Route>
 

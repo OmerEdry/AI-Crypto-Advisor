@@ -27,3 +27,17 @@ export interface ErrorDetail {
   path: string;
   message: string;
 }
+
+// The two Prisma enums, mirrored as string unions. §8: investorType picks the tone and the
+// price window, contentTypes ranks the dashboard sections.
+export type InvestorType = 'HODLER' | 'DAY_TRADER' | 'NFT_COLLECTOR';
+export type ContentType = 'MARKET_NEWS' | 'CHARTS' | 'SOCIAL' | 'FUN';
+
+// `contentTypes` is a ranking, not a set: §8.1 orders dashboard sections by it, and the server
+// dedupes preserving first occurrence for the same reason. Whatever builds this array must
+// preserve the order the user chose in.
+export interface PreferencesInput {
+  assets: string[];
+  investorType: InvestorType;
+  contentTypes: ContentType[];
+}

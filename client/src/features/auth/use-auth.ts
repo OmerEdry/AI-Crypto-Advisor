@@ -11,6 +11,10 @@ export interface AuthContextValue {
   login: (input: LoginInput) => Promise<Session>;
   register: (input: RegisterInput) => Promise<Session>;
   logout: () => Promise<void>;
+  // For the one thing that changes the session without going through this file: completing
+  // onboarding flips hasCompletedOnboarding on the server while the cached copy still says
+  // false. Exposed as a method so the query key stays owned by the provider.
+  refreshSession: () => Promise<void>;
 }
 
 // The context and its hook live apart from the provider component so that file exports only

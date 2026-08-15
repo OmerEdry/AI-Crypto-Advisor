@@ -45,6 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         return loadSession();
       },
+      // Awaited to completion, not fired and forgotten: the caller navigates on the strength of
+      // the refreshed flag, so returning before the refetch lands would race the guard.
+      refreshSession: async () => {
+        await queryClient.invalidateQueries({ queryKey: SESSION_KEY });
+      },
       logout: async () => {
         await authApi.logout();
         // Written straight into the cache rather than invalidated: the cookie is already gone,
